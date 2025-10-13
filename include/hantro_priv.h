@@ -101,6 +101,7 @@ struct hantro_device_handle {
 #ifdef PCIE_EN
 	void *dev;
 #endif
+	struct mutex struct_mutex; /* protect drm_device */
 };
 
 struct hantro_mem_handle {
