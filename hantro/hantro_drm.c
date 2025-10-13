@@ -1878,7 +1878,9 @@ struct drm_driver hantro_drm_driver = {
 	.fops = &hantro_fops,
 	.name = DRIVER_NAME,
 	.desc = DRIVER_DESC,
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0))
 	.date = DRIVER_DATE,
+#endif
 	.major = DRIVER_MAJOR,
 	.minor = DRIVER_MINOR,
 };
