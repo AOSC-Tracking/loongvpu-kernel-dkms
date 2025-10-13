@@ -912,6 +912,19 @@ compile_test() {
 
             compile_check_conftest "$CODE" "LG_DRM_GET_FORMAT_INFO_USE_PIXEL_FORMAT" "" "types"
         ;;
+        dma_set_mask_and_coherent)
+            #
+            # Determine if dma_set_mask_and_coherent function exists.
+            #
+            CODE="
+            #include <linux/dma-mapping.h>
+            int conftest_dma_set_mask_and_coherent(struct device *dev,
+                                                   u64 mask) {
+                return dma_set_mask_and_coherent(dev, mask);
+            }" > conftest$$.c
+
+            compile_check_conftest "$CODE" "LG_DMA_SET_MASK_AND_COHERENT" "" "types"
+        ;;
 
         # When adding a new conftest entry, please use the correct format for
         # specifying the relevant upstream Linux kernel commit.  Please
