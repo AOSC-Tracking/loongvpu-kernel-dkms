@@ -172,3 +172,4 @@ LG_CONFTEST_TYPE_COMPILE_TESTS += vm_operations_fault_ret_int
 LG_CONFTEST_TYPE_COMPILE_TESTS += dma_resv_reserve_fences
 LG_CONFTEST_TYPE_COMPILE_TESTS += drm_gem_object_reference
 LG_CONFTEST_TYPE_COMPILE_TESTS += drm_driver_prime_flag_present
+LG_CONFTEST_TYPE_COMPILE_TESTS += drm_get_format_info_use_pixel_format

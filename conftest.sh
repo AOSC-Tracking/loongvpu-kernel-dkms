@@ -901,6 +901,17 @@ compile_test() {
             $CC $CFLAGS -E -P conftest$$.c
             rm -f conftest$$.c
         ;;
+        drm_get_format_info_use_pixel_format)
+            #
+            # Determine if drm_get_format_info uses pixel_format as argument
+            #
+            echo "#include <drm/drm.h>
+            void conftest_drm_get_format_info_use_pixel_format(struct drm_device *dev) {
+                return drm_get_format_info(dev, 0, 0);
+            }" > conftest$$.c
+
+            compile_check_conftest "$CODE" "LG_DRM_GET_FORMAT_INFO_USE_PIXEL_FORMAT" "" "types"
+        ;;
 
         # When adding a new conftest entry, please use the correct format for
         # specifying the relevant upstream Linux kernel commit.  Please
