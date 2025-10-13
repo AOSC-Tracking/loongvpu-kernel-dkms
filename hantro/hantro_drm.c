@@ -747,7 +747,11 @@ static int hantro_fb_create2(struct drm_device *dev, void *data,
 	vsifb = kzalloc(sizeof(*vsifb), GFP_KERNEL);
 	if (!vsifb)
 		return -ENOMEM;
+#if defined(LG_DRM_HELPER_MODE_FILL_FB_STRUCT_PASSES_INFO)
+	drm_helper_mode_fill_fb_struct(dev, &vsifb->fb, NULL, mode_cmd);
+#else
 	drm_helper_mode_fill_fb_struct(dev, &vsifb->fb, mode_cmd);
+#endif
 	for (i = 0; i < num_planes; i++)
 		vsifb->obj[i] = objs[i];
 	ret = drm_framebuffer_init(dev, &vsifb->fb, &hantro_drm_fb_funcs);

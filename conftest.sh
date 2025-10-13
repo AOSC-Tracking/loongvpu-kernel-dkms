@@ -928,6 +928,20 @@ compile_test() {
 
             compile_check_conftest "$CODE" "LG_DRM_GET_FORMAT_INFO_USE_PIXEL_FORMAT" "" "types"
         ;;
+        drm_helper_mode_fill_fb_struct_passes_info)
+            #
+            # Determine if drm_helper_mode_fill_fb_struct function accepts a format info argument.
+            #
+            CODE="#include <drm/drm_modeset_helper.h>
+            void conftest_drm_helper_mode_fill_fb_struct_passes_info(
+                    struct drm_device *dev,
+                    struct drm_framebuffer *fb,
+				    const struct drm_mode_fb_cmd2 *mode_cmd) {
+                return drm_helper_mode_fill_fb_struct(dev, fb, 0, mode_cmd);
+            }"
+
+            compile_check_conftest "$CODE" "LG_DRM_HELPER_MODE_FILL_FB_STRUCT_PASSES_INFO" "" "types"
+        ;;
 
         # When adding a new conftest entry, please use the correct format for
         # specifying the relevant upstream Linux kernel commit.  Please
