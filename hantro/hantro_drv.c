@@ -841,14 +841,25 @@ static int loongvpu_pci_probe(struct pci_dev *pdev, const struct pci_device_id *
 		pr_debug("%s,%d err pci init failed\n", __func__, __LINE__);
 
 	dma_bits = 64;
-	r = pci_set_dma_mask(pdev, DMA_BIT_MASK(dma_bits));
+#if defined(LG_DMA_SET_MASK_AND_COHERENT)
+	r = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(dma_bits));
+#else
+	r = dma_set_mask(pdev, DMA_BIT_MASK(dma_bits));
+#endif
 	if (r) {
 		dma_bits = 32;
+#if defined(LG_DMA_SET_MASK_AND_COHERENT)
+		r = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(dma_bits));
+#endif
 		pr_warn("hantro: No suitable DMA available\n");
 	}
+#if !defined(LG_DMA_SET_MASK_AND_COHERENT)
 	r = pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(dma_bits));
+#endif
 	if (r) {
+#if !defined(LG_DMA_SET_MASK_AND_COHERENT)
 		pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(32));
+#endif
 		pr_warn("hantro: No coherent DMA available\n");
 	}
 
