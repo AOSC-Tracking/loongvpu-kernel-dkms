@@ -916,14 +916,27 @@ compile_test() {
             #
             # Determine if dma_set_mask_and_coherent function exists.
             #
-            CODE="
-            #include <linux/dma-mapping.h>
+            echo "#include <linux/dma-mapping.h>
             int conftest_dma_set_mask_and_coherent(struct device *dev,
                                                    u64 mask) {
                 return dma_set_mask_and_coherent(dev, mask);
             }" > conftest$$.c
 
             compile_check_conftest "$CODE" "LG_DMA_SET_MASK_AND_COHERENT" "" "types"
+        ;;
+        drm_helper_mode_fill_fb_struct_passes_info)
+            #
+            # Determine if drm_helper_mode_fill_fb_struct function accepts a format info argument.
+            #
+            echo "#include <drm/drm_modeset_helper.h>
+            void conftest_drm_helper_mode_fill_fb_struct_passes_info(
+                    struct drm_device *dev,
+                    struct drm_framebuffer *fb,
+				    const struct drm_mode_fb_cmd2 *mode_cmd) {
+                return drm_helper_mode_fill_fb_struct(dev, fb, NULL, mode_cmd);
+            }" > conftest$$.c
+
+            compile_check_conftest "$CODE" "LG_DRM_HELPER_MODE_FILL_FB_STRUCT_PASSES_INFO" "" "types"
         ;;
 
         # When adding a new conftest entry, please use the correct format for
