@@ -1269,7 +1269,11 @@ int __init hantro_init(void)
 module_init(hantro_init);
 module_exit(hantro_cleanup);
 #if defined(MODULE_IMPORT_NS)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 13, 0))
+MODULE_IMPORT_NS("DMA_BUF");
+#else
 MODULE_IMPORT_NS(DMA_BUF);
+#endif
 #endif
 /* module description */
 MODULE_LICENSE("GPL v2");
