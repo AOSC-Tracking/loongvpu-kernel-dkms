@@ -29,6 +29,9 @@
 #include "vcmdswhwregisters.h"
 #include <linux/delay.h>
 #include "ipoffset/vcmd_offset.h"
+#if defined(LG_LINUX_PCI_H_PRESENT)
+#include <linux/pci.h>
+#endif
 #ifdef HAS_MMU
 #include "hantrommu.h"
 #endif

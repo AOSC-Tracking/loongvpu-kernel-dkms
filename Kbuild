@@ -320,7 +320,8 @@ LG_HEADER_PRESENCE_TESTS = \
  soc/tegra/bpmp.h \
  linux/sync_file.h \
  linux/cc_platform.h \
- asm/cpufeature.h
+ asm/cpufeature.h \
+ linux/pci.h
 
 # Filename to store the define for the header in $(1); this is only consumed by
 # the rule below that concatenates all of these together.

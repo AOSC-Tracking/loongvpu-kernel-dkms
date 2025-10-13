@@ -33,12 +33,7 @@
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/pm_runtime.h>
-#if defined(LG_DRM_DRM_MODESET_HELPER_H_PRESENT)
-#include <drm/drm_modeset_helper.h>
-#ifdef __amd64__
-#include <asm/set_memory.h>
-#endif
-#endif
+
 /* Our header */
 #include "hantro_helper.h"
 #include "hantro_priv.h"
@@ -52,6 +47,16 @@
 #include <linux/of_irq.h>
 #include "hantro_vcmd.h"
 #include "hantro_mem_pool.h"
+
+#if defined(LG_LINUX_PCI_H_PRESENT)
+#include <linux/pci.h>
+#endif
+#if defined(LG_DRM_DRM_MODESET_HELPER_H_PRESENT)
+#include <drm/drm_modeset_helper.h>
+#ifdef __amd64__
+#include <asm/set_memory.h>
+#endif
+#endif
 
 #ifdef VSI_FPGA_MEM
 #include "hantro_fpga_mem.h"
