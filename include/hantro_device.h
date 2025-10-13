@@ -23,7 +23,9 @@
 
 #include "hantro.h"
 
+#ifndef MAX
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
+#endif
 
 /* #define MAX(a, b)                 \
  * ({ typeof(a) a_ = (a);            \
