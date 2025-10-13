@@ -714,7 +714,11 @@ static int hantro_fb_create2(struct drm_device *dev, void *data,
 	struct hantro_drm_fb *vsifb;
 	struct drm_gem_object *objs[4];
 	struct drm_gem_object *obj;
+#if defined(LG_DRM_GET_FORMAT_INFO_USE_PIXEL_FORMAT)
+	const struct drm_format_info *info = drm_get_format_info(dev, mode_cmd->pixel_format, mode_cmd->modifier[0]);
+#else
 	const struct drm_format_info *info = drm_get_format_info(dev, mode_cmd);
+#endif
 	unsigned int hsub;
 	unsigned int vsub;
 	int num_planes;
