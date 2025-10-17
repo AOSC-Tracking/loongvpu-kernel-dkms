@@ -1609,6 +1609,9 @@ const struct file_operations hantro_fops = {
 	.read = drm_read,
 	.unlocked_ioctl = hantro_ioctl, //drm_ioctl,
 	.compat_ioctl = drm_compat_ioctl,
+#ifdef FOP_UNSIGNED_OFFSET
+	.fop_flags = FOP_UNSIGNED_OFFSET,
+#endif
 };
 
 static void hantro_gem_vm_close(struct vm_area_struct *vma)
