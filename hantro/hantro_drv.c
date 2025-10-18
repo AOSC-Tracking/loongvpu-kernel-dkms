@@ -957,7 +957,7 @@ static struct pci_driver loongvpu_encoder_driver = {
 };
 #endif
 
-void __exit hantro_cleanup(void)
+static void __exit hantro_cleanup(void)
 {
 	int vcmd_en;
 	hantro_ioctl_id ioctl_id_par;
@@ -1130,7 +1130,7 @@ static void __init probe_hantroHW(unsigned long reg_base,
 	}
 }
 
-int __init hantro_init(void)
+static int __init hantro_init(void)
 {
 	int result, i;
 	struct hantro_base_addr subsys_info;

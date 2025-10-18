@@ -624,7 +624,7 @@ int add_mmunode(u32 sliceindex, struct mmu_t *mmucore)
 	return 0;
 }
 
-int add_vcmdnode(u32 sliceindex, struct hantrovcmd_t *vcmdcore)
+static int add_vcmdnode(u32 sliceindex, struct hantrovcmd_t *vcmdcore)
 {
 	struct hantrovcmd_t *pvcmd;
 	struct hantrodec_t *pdec;

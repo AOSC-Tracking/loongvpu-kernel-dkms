@@ -123,7 +123,7 @@ int init_hantro_resv(
 	return 0;
 }
 
-int hantro_waitfence(hantro_fence_t *pfence)
+static int hantro_waitfence(hantro_fence_t *pfence)
 {
 	if (test_bit(HANTRO_FENCE_FLAG_SIGNAL_BIT, &pfence->flags))
 		return 0;
