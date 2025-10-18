@@ -2940,7 +2940,7 @@ static int hantro_vcmd_mem_pool_init(vcmd_dev_str *subsys_dev)
 	return 0;
 }
 
-int hantro_vcmd_subsys_probe(vcmd_dev_str *subsys_dev)
+static int hantro_vcmd_subsys_probe(vcmd_dev_str *subsys_dev)
 {
 	vcmd_core_str *subsys_core;
 	u32 i, k;
@@ -3203,7 +3203,7 @@ int hantro_vcmd_init(void *p)
 	return 0;
 }
 
-int hantro_get_core_type(u32 sub_module_type)
+static int hantro_get_core_type(u32 sub_module_type)
 {
 	int core_type;
 
@@ -3404,7 +3404,7 @@ static void cmdbuf_update_jmp_cmd(int hw_version_id,
  * Return: pointer to N or NULL if N doesn't exist.
  */
 
-void vcmd_delink_rm_cmdbuf(vcmd_core_str *subsys_core, bi_list_node *cmdbuf_node)
+static void vcmd_delink_rm_cmdbuf(vcmd_core_str *subsys_core, bi_list_node *cmdbuf_node)
 {
 	struct vcmd_dev *subsys_dev = subsys_core->parent_dev;
 	bi_list *list = &subsys_core->list_manager;
