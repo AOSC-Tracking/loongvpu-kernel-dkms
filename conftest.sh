@@ -492,6 +492,21 @@ compile_test() {
 
         ;;
 
+        platform_driver_remove_returns_void)
+            #
+            # Determine if platform_driver_remove returns void
+            #
+            CODE="
+            #include <linux/platform_device.h>
+            void test_platform_driver_remove(struct platform_driver *driver) {
+                    return driver->remove(NULL);
+            }
+            "
+
+            compile_check_conftest "$CODE" "LG_PLATFORM_DRIVER_REMOVE_RETURNS_VOID" "" "types"
+        
+        ;;
+
         uts_release)
             #
             # print the kernel's UTS_RELEASE string.

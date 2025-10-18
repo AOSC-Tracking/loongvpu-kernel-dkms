@@ -58,3 +58,4 @@ LG_OBJECTS_DEPEND_ON_CONFTEST += $(GSGPU_VDEC_OBJECTS)
 
 LG_CONFTEST_TYPE_COMPILE_TESTS += class_create_has_owner_arg
 LG_CONFTEST_TYPE_COMPILE_TESTS += class_devnode_has_const
+LG_CONFTEST_TYPE_COMPILE_TESTS += platform_driver_remove_returns_void

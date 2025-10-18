@@ -461,7 +461,13 @@ static int loongvpu_platform_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int loongvpu_platform_remove(struct platform_device *pdev)
+static
+#ifdef LG_PLATFORM_DRIVER_REMOVE_RETURNS_VOID
+void
+#else
+int
+#endif
+loongvpu_platform_remove(struct platform_device *pdev)
 {
 	gsgpu_vdec_t *dev = (gsgpu_vdec_t *) &gsgpu_vdec_data;
 
@@ -473,7 +479,9 @@ static int loongvpu_platform_remove(struct platform_device *pdev)
 	class_destroy(gsgpu_vdec_class);
 	unregister_chrdev(gsgpu_vdec_major, "gsgpu_vdec");
 
+#ifndef LG_PLATFORM_DRIVER_REMOVE_RETURNS_VOID
 	return 0;
+#endif
 }
 
 static struct platform_driver loongvpu_platform_driver = {
