@@ -1,0 +1,10 @@
+/.cache
+/conftest
+
+*.o
+*.ko
+*.mod
+*.mod.c
+*.cmd
+*.symvers
+*.order
