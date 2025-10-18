@@ -50,7 +50,7 @@ unsigned int mem_table[] = {
 	BLOCK_MAX_PAGES, BLOCK_MAX_PAGES
 };
 
-int alloc_memory(unsigned int *busaddr, unsigned int size, struct file *filp)
+static int alloc_memory(unsigned int *busaddr, unsigned int size, struct file *filp)
 {
 	int i;
 
@@ -72,7 +72,7 @@ int alloc_memory(unsigned int *busaddr, unsigned int size, struct file *filp)
 	return 0;
 }
 
-int free_memory(unsigned int busaddr)
+static int free_memory(unsigned int busaddr)
 {
 	int i;
 
@@ -86,7 +86,7 @@ int free_memory(unsigned int busaddr)
 	return 0;
 }
 
-int memalloc_release(struct inode *inode, struct file *filp)
+static int memalloc_release(struct inode *inode, struct file *filp)
 {
 	int i;
 
@@ -99,7 +99,7 @@ int memalloc_release(struct inode *inode, struct file *filp)
 	return 0;
 }
 
-int alloc_pages_poll(void)
+static int alloc_pages_poll(void)
 {
 	int i;
 
@@ -115,7 +115,7 @@ int alloc_pages_poll(void)
 	return 0;
 }
 
-int memory_poll_alloc(void)
+static int memory_poll_alloc(void)
 {
 	int result;
 
@@ -140,7 +140,7 @@ static void free_pages_poll(void)
 	return;
 }
 
-void memalloc_remove(void)
+static void memalloc_remove(void)
 {
 	free_pages_poll();
 }
@@ -271,7 +271,7 @@ static int gsgpu_vdec_release(struct inode *inode, struct file *filp)
 	return 0;
 }
 
-irqreturn_t gsgpu_vdec_isr(int irq, void *dev_id)
+static irqreturn_t gsgpu_vdec_isr(int irq, void *dev_id)
 {
 	gsgpu_vdec_t *dev = (gsgpu_vdec_t *) dev_id;
 	unsigned int handled = 0;
@@ -310,7 +310,7 @@ irqreturn_t gsgpu_vdec_isr(int irq, void *dev_id)
 	return IRQ_RETVAL(handled);
 }
 
-void HwInit(gsgpu_vdec_t *dev)
+static void HwInit(gsgpu_vdec_t *dev)
 {
 	int i;
 
@@ -319,7 +319,7 @@ void HwInit(gsgpu_vdec_t *dev)
 		writel(0, dev->regs + i);
 }
 
-void show_regs(unsigned long data)
+static void show_regs(unsigned long data)
 {
 	gsgpu_vdec_t *dev = (gsgpu_vdec_t *) data;
 	int i;
@@ -444,7 +444,7 @@ err:
 	return ret;
 }
 
-int loongvpu_platform_probe(struct platform_device *pdev)
+static int loongvpu_platform_probe(struct platform_device *pdev)
 {
 	int ret;
 
@@ -461,7 +461,7 @@ int loongvpu_platform_probe(struct platform_device *pdev)
 	return ret;
 }
 
-int loongvpu_platform_remove(struct platform_device *pdev)
+static int loongvpu_platform_remove(struct platform_device *pdev)
 {
 	gsgpu_vdec_t *dev = (gsgpu_vdec_t *) &gsgpu_vdec_data;
 
