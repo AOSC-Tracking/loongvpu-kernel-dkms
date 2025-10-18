@@ -66,7 +66,7 @@ int memory_pool_free(unsigned long addr)
 	return -1;
 }
 
-int memalloc_release(struct inode *inode)
+static int memalloc_release(struct inode *inode)
 {
 	int i;
 
@@ -76,7 +76,7 @@ int memalloc_release(struct inode *inode)
 	return 0;
 }
 
-int alloc_pages_pool(void)
+static int alloc_pages_pool(void)
 {
 	int i, j;
 	struct sysinfo mem_info;
