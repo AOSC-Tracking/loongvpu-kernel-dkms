@@ -599,7 +599,7 @@ static const struct platform_device_id hantro_drm_platform_ids[] = {
 	{},
 };
 MODULE_DEVICE_TABLE(platform, hantro_drm_platform_ids);
-
+#ifdef USE_DTB_PROBE
 static const struct of_device_id hantro_of_match[] = {
 	/*to match dtb, else reg io will fail*/
 	{
@@ -607,7 +607,7 @@ static const struct of_device_id hantro_of_match[] = {
 	},
 	{ /* sentinel */ }
 };
-
+#endif
 static const struct pci_device_id pciidlist[] = {
         {0x0014, 0x7A56, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0},
         {0, 0, 0}
