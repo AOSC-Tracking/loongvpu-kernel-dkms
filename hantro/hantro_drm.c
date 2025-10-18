@@ -154,6 +154,7 @@ static int hantro_gem_dumb_create_internal(struct drm_file *file_priv,
 	if (ret) {
 		FreeMem(cma_obj);
 		kfree(cma_obj);
+		goto out;
 	}
 	init_hantro_resv(&cma_obj->kresv, cma_obj);
 	cma_obj->handle = args->handle;
