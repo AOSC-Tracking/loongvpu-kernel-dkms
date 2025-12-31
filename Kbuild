@@ -275,6 +275,7 @@ LG_HEADER_PRESENCE_TESTS = \
  linux/device/class.h \
  linux/dma-fence.h \
  linux/dma-resv.h \
+ linux/pci-dma-compat.h \
  soc/tegra/chip-id.h \
  soc/tegra/fuse.h \
  soc/tegra/tegra_bpmp.h \

@@ -33,6 +33,7 @@
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/pm_runtime.h>
+#include <linux/pci.h>
 #if defined(LG_DRM_DRM_MODESET_HELPER_H_PRESENT)
 #include <drm/drm_modeset_helper.h>
 #ifdef __amd64__
@@ -61,6 +62,9 @@
 #include "hantro_pcie.h"
 struct hantro_pci_t pci_par = {0};
 #endif
+
+#define MAX_VPU_POOL_LIMIT 0x20000
+#define PCI_H2_BAR				 (0)
 
 struct hantro_device_handle hantro_dev;
 static int useirq = 1;
@@ -603,12 +607,18 @@ static const struct of_device_id hantro_of_match[] = {
 	{ /* sentinel */ }
 };
 
-static const struct pci_device_id pciidlist[] = {
+static const struct pci_device_id decidlist[] = {
         {0x0014, 0x7A56, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0},
         {0, 0, 0}
 };
 
-MODULE_DEVICE_TABLE(pci, pciidlist);
+static const struct pci_device_id encidlist[] = {
+        {0x0014, 0x7A66, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0},
+        {0, 0, 0}
+};
+
+MODULE_DEVICE_TABLE(pci, decidlist);
+MODULE_DEVICE_TABLE(pci, encidlist);
 
 #ifdef PCIE_EN
 static int hantro_pm_pci_switch(struct pci_dev *pdev, bool is_suspend)
@@ -667,8 +677,7 @@ static int hantro_pm_suspend(struct device *kdev, bool is_suspend)
 #endif // HAS_VCMD
 #ifdef PCIE_EN
 	if (is_suspend) {
-		hantro_pm_pci_switch(pci_par.dev, true);
-		hantro_pm_pci_switch(pci_par.enc_dev, true);
+		hantro_pm_pci_switch(to_pci_dev(kdev), true);
 	}
 #endif
 
@@ -684,8 +693,7 @@ static int hantro_pm_resume(struct device *kdev, bool is_resume)
 
 #ifdef PCIE_EN
 	if (is_resume) {
-		hantro_pm_pci_switch(pci_par.dev, false);
-		hantro_pm_pci_switch(pci_par.enc_dev, false);
+		hantro_pm_pci_switch(to_pci_dev(kdev), false);
 	}
 #endif
 
@@ -826,7 +834,7 @@ static void release_norslice_node(void)
 }
 
 #ifdef PCIE_EN
-static int loongvpu_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
+static int loongvpu_decoder_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 {
 	int r;
 	int dma_bits;
@@ -836,30 +844,85 @@ static int loongvpu_pci_probe(struct pci_dev *pdev, const struct pci_device_id *
 		pr_debug("%s,%d err pci init failed\n", __func__, __LINE__);
 
 	dma_bits = 64;
-	r = pci_set_dma_mask(pdev, DMA_BIT_MASK(dma_bits));
+	r = lg_pci_set_dma_mask(pdev, &pdev->dev, DMA_BIT_MASK(dma_bits));
 	if (r) {
 		dma_bits = 32;
 		pr_warn("hantro: No suitable DMA available\n");
 	}
-	r = pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(dma_bits));
+	r = lg_pci_set_consistent_dma_mask(pdev, &pdev->dev, DMA_BIT_MASK(dma_bits));
 	if (r) {
-		pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(32));
+		lg_pci_set_consistent_dma_mask(pdev, &pdev->dev, DMA_BIT_MASK(32));
 		pr_warn("hantro: No coherent DMA available\n");
 	}
 
 	return r;
 }
-static void loongvpu_pci_remove(struct pci_dev *pdev)
+
+static int loongvpu_encoder_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 {
-        pci_disable_device(pdev);
-        pci_disable_device(pci_par.enc_dev);
+	int r;
+	int dma_bits;
+	unsigned long enc_base_hdwr; /* PCI encoder base register address (Hardware address) */
+	u32 enc_base_len; /* Base encoder register address Length */
+	int enc_irq = 0;
+
+	dma_bits = 64;
+	r = lg_pci_set_dma_mask(pdev, &pdev->dev, DMA_BIT_MASK(dma_bits));
+	if (r) {
+		dma_bits = 32;
+		pr_warn("hantro: No suitable DMA available\n");
+	}
+	r = lg_pci_set_consistent_dma_mask(pdev, &pdev->dev, DMA_BIT_MASK(dma_bits));
+	if (r) {
+		lg_pci_set_consistent_dma_mask(pdev, &pdev->dev, DMA_BIT_MASK(32));
+		pr_warn("hantro: No coherent DMA available\n");
+	}
+
+	if (pci_enable_device(pdev) < 0) {
+		pr_err("Init: Encoder Device not enabled.\n");
+		return -1;
+	}
+
+	enc_base_hdwr = pci_resource_start(pdev, PCI_H2_BAR);
+	if (enc_base_hdwr < 0) {
+		pr_info("Init: Encoder Base Address not set.\n");
+		return -1;
+	}
+
+	enc_base_len = pci_resource_len(pdev, PCI_H2_BAR);
+	enc_irq = pci_irq_vector(pdev, 0);
+	pci_par.enc_irqnum = enc_irq;
+	pr_info("Encoder Base hw val 0x%llx len: 0x%x irq: %d\n", (unsigned long long)enc_base_hdwr, (unsigned int)enc_base_len, enc_irq);
+
+	pci_par.enc_pci_base_reg_hw = enc_base_hdwr;
+	pci_par.enc_pci_base_reg_len = enc_base_len;
+
+	return r;
 }
 
-static struct pci_driver loongvpu_pci_driver = {
-        .name = DRIVER_NAME,
-        .id_table = pciidlist,
-        .probe = loongvpu_pci_probe,
-        .remove = loongvpu_pci_remove,
+static void loongvpu_decoder_remove(struct pci_dev *pdev)
+{
+	pci_disable_device(pdev);
+}
+
+static struct pci_driver loongvpu_decoder_driver = {
+	.name = DRIVER_NAME,
+	.id_table = decidlist,
+	.probe = loongvpu_decoder_probe,
+	.remove = loongvpu_decoder_remove,
+	.driver.pm = &hantro_pm_ops,
+};
+
+static void loongvpu_encoder_remove(struct pci_dev *pdev)
+{
+	pci_disable_device(pdev);
+}
+
+static struct pci_driver loongvpu_encoder_driver = {
+	.name = "hantro_enc",
+	.id_table = encidlist,
+	.probe = loongvpu_encoder_probe,
+	.remove = loongvpu_encoder_remove,
 	.driver.pm = &hantro_pm_ops,
 };
 #endif
@@ -929,7 +992,8 @@ void __exit hantro_cleanup(void)
 #ifdef VSI_CONFIG_PM
 	hantro_pm_runtime_disable(&pci_par.dev->dev);
 #endif
-	pci_unregister_driver(&loongvpu_pci_driver);
+	pci_unregister_driver(&loongvpu_decoder_driver);
+	pci_unregister_driver(&loongvpu_encoder_driver);
 
 	hantro_memory_pool_remove();
 }
@@ -1041,6 +1105,14 @@ int __init hantro_init(void)
 	int result, i;
 	struct hantro_base_addr subsystem_base_addr;
 	int __maybe_unused slice_num = 0;
+	struct sysinfo mem_info;
+
+	si_meminfo(&mem_info);
+
+	if (mem_info.freeram < MAX_VPU_POOL_LIMIT) {
+		pr_info("VPU: no memory alloc, current free size: %ld M\n", mem_info.freeram * PAGE_SIZE/1024/1024);
+		return -ENOMEM;
+	}
 
 	/*
 	 *_init functions will init static vairables,
@@ -1069,11 +1141,15 @@ int __init hantro_init(void)
 	hantro_dev.config = 0;
 #ifndef USE_DTB_PROBE //static table analyze, dec and enc must be in the front
 #ifdef PCIE_EN //get reg/ddr base info
-	result = pci_register_driver(&loongvpu_pci_driver);
+	result = pci_register_driver(&loongvpu_decoder_driver);
 	if (result) {
 		return result;
 	}
 
+	result = pci_register_driver(&loongvpu_encoder_driver);
+	if (result) {
+		return result;
+	}
 	subsystem_base_addr.dec_reg_base = pci_par.dec_pci_base_reg_hw;
 	subsystem_base_addr.enc_reg_base = pci_par.enc_pci_base_reg_hw;
 	subsystem_base_addr.ddr_base = pci_par.pci_base_ddr_hw;
@@ -1117,8 +1193,12 @@ int __init hantro_init(void)
 	hantro_fpga_meminit((unsigned long)pci_par.pci_base_ddr_hw);
 #else
 	//customer init memmory region here if needed
-	pr_info("Maybe need customized in %s, line %d\n", __func__, __LINE__);
-	hantro_mem_pool_init();
+	pr_debug("Maybe need customized in %s, line %d\n", __func__, __LINE__);
+	result = hantro_mem_pool_init();
+	if (result < 0) {
+		pr_err("Alloc reserve memory pool failed.\n");
+		return result;
+	}
 #endif
 #ifdef HAS_VCMD
 

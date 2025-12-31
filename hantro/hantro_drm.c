@@ -44,7 +44,7 @@
 #endif
 
 #define DRIVER_DESC "hantro DRM"
-#define DRIVER_DATE "20250611"
+#define DRIVER_DATE "20251203"
 #define DRIVER_MAJOR 1
 #define DRIVER_MINOR 1
 
@@ -1869,7 +1869,7 @@ struct drm_driver hantro_drm_driver = {
 	.gem_prime_import_sg_table = hantro_gem_prime_import_sg_table,
 	//.gem_prime_res_obj = hantro_gem_prime_res_obj,
 #if defined(LG_DRM_DRIVER_HAS_GEM_PRIME_MMAP)
-	.gem_prime_mmap = hantro_gem_prime_mmap,
+	//.gem_prime_mmap = hantro_gem_prime_mmap,
 #endif
 	.fops = &hantro_fops,
 	.name = DRIVER_NAME,

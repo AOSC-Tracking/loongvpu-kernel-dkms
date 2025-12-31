@@ -1,5 +1,7 @@
 #include "hantro_mem_pool.h"
 
+#define SYSTEM_MEMORY_SIZE 0x40000
+
 static size_t blocks;
 static mem_block_t mem_blocks[256];
 static spinlock_t alloc_pool_lock;
@@ -24,6 +26,8 @@ unsigned int mem_table[] = {
 	1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024,
 	1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024, 1024
 };
+
+extern void si_meminfo(struct sysinfo *val);
 
 int memory_pool_alloc(unsigned long *vaddr, unsigned long *busaddr, unsigned int size)
 {
@@ -74,18 +78,29 @@ int memalloc_release(struct inode *inode)
 
 int alloc_pages_pool(void)
 {
-	int i;
+	int i, j;
+	struct sysinfo mem_info;
 	long total_size = 0;
+	bool is_below_4g = 0;
+
+	si_meminfo(&mem_info);
+
+	if (mem_info.freeram < SYSTEM_MEMORY_SIZE)
+		is_below_4g = 1;
 
 	for (i = 0; i < blocks; i++) {
 		mem_blocks[i].size = PAGE_SIZE * mem_table[i];
 		mem_blocks[i].vaddr = (unsigned long)alloc_pages_exact(mem_blocks[i].size, __GFP_ZERO);
 		if (!mem_blocks[i].vaddr) {
+			for (j = i; j > 0; j--)
+				free_pages_exact((void *)mem_blocks[j - 1].vaddr, mem_blocks[j - 1].size);
 			return -ENOMEM;
 		}
 		mem_blocks[i].paddr = __pa(mem_blocks[i].vaddr);
 		mem_blocks[i].used = 0;
 		total_size += mem_blocks[i].size;
+		if (is_below_4g && (i == 127))
+			break;
 	}
 	pr_info("VPU: Reserve totol memory size: %ld M\n", total_size/1024/1024);
 	return 0;

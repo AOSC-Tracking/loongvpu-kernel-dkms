@@ -21,6 +21,7 @@
 #include <linux/module.h>
 #include <linux/vmalloc.h>
 #include <linux/interrupt.h>
+#include <linux/pci.h>
 /* Our header */
 #include "hantro.h"
 #include "hantro_device.h"

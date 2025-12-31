@@ -23,7 +23,6 @@
 
 struct hantro_pci_t {
 	struct pci_dev *dev;
-	struct pci_dev *enc_dev;
 	/* PCI base register address (Hardware address) */
 	unsigned long enc_pci_base_reg_hw;
 	unsigned long dec_pci_base_reg_hw;

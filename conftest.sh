@@ -484,6 +484,21 @@ compile_test() {
             compile_check_conftest "$CODE" "LG_DRM_GEM_OBJECT_REFERENCE" "" "types"
         ;;
 
+        drm_gem_object_put_unlocked)
+            #
+            # Determine if drm_gem_object_put_unlocked exists.
+            #
+            # Changed by commit 2f4dd13d4bb8a85f6d5b66a18989509924e4f5e9 ("drm/gem:
+            # add drm_gem_object_put helper") in 5.7-rc7
+            #
+            CODE="
+            #include <drm/drm_gem.h>
+            typeof(drm_gem_object_put_unlocked) conftest_drm_gem_object_put_unlocked;
+            void conftest_drm_gem_object_put_unlocked(struct drm_gem_object *obj) {
+                return;
+            }"
+            compile_check_conftest "$CODE" "LG_DRM_GEM_OBJECT_PUT_UNLOCKED" "" "types"
+        ;;
 
         dma_resv_reserve_fences)
             #

@@ -43,6 +43,9 @@
 #if defined(LG_DRM_GEM_OBJECT_REFERENCE)
 #define hantro_ref_drmobj drm_gem_object_reference
 #define hantro_unref_drmobj drm_gem_object_unreference_unlocked
+#elif defined(LG_DRM_GEM_OBJECT_PUT_UNLOCKED)
+#define hantro_ref_drmobj drm_gem_object_get
+#define hantro_unref_drmobj drm_gem_object_put_unlocked
 #else
 #define hantro_ref_drmobj drm_gem_object_get
 #define hantro_unref_drmobj drm_gem_object_put
