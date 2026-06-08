@@ -177,7 +177,8 @@ static inline void hantro_fence_put(hantro_fence_t *fence)
 
 static inline int hantro_fence_signal(hantro_fence_t *fence)
 {
-	return dma_fence_signal(fence);
+	dma_fence_signal(fence);
+	return 0;
 }
 
 static inline void ref_page(struct page *pp)

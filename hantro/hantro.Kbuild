@@ -175,3 +175,4 @@ LG_CONFTEST_TYPE_COMPILE_TESTS += drm_driver_prime_flag_present
 LG_CONFTEST_TYPE_COMPILE_TESTS += drm_gem_object_put_unlocked
 LG_CONFTEST_TYPE_COMPILE_TESTS += drm_get_format_info_use_pixel_format
 LG_CONFTEST_TYPE_COMPILE_TESTS += drm_helper_mode_fill_fb_struct_passes_info
+LG_CONFTEST_TYPE_COMPILE_TESTS += dma_fence_has_per_fence_lock

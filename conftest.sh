@@ -943,6 +943,18 @@ compile_test() {
             compile_check_conftest "$CODE" "LG_DRM_HELPER_MODE_FILL_FB_STRUCT_PASSES_INFO" "" "types"
         ;;
 
+        dma_fence_has_per_fence_lock)
+            #
+            # Determine if dma_fence has per-fence lock.
+            #
+            CODE="#include <linux/dma-fence.h>
+            void conftest_dma_fence_has_per_fence_lock(struct dma_fence *fence) {
+                (void)&fence->inline_lock;
+            }"
+
+            compile_check_conftest "$CODE" "LG_DMA_FENCE_HAS_PER_FENCE_LOCK" "" "types"
+        ;;
+
         # When adding a new conftest entry, please use the correct format for
         # specifying the relevant upstream Linux kernel commit.  Please
         # avoid specifying -rc kernels, and only use SHAs that actually exist
