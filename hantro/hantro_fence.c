@@ -45,23 +45,32 @@ static bool hantro_fence_enable_signaling(hantro_fence_t *fence)
 		return false;
 }
 
+#if !defined(LG_DMA_FENCE_HAS_PER_FENCE_LOCK)
+#define dma_fence_lock_irqsave(fence, flags)	\
+	spin_lock_irqsave(fence->lock, flags)
+#define dma_fence_unlock_irqrestore(fence, flags)	\
+	spin_unlock_irqrestore(fence->lock, flags)
+#endif
+
 static bool hantro_fence_signaled(hantro_fence_t *fobj)
 {
 	unsigned long irqflags;
 	bool ret;
 
-	spin_lock_irqsave(fobj->lock, irqflags);
+	dma_fence_lock_irqsave(fobj, irqflags);
 	ret = (test_bit(HANTRO_FENCE_FLAG_SIGNAL_BIT, &fobj->flags) != 0);
-	spin_unlock_irqrestore(fobj->lock, irqflags);
+	dma_fence_unlock_irqrestore(fobj, irqflags);
 	return ret;
 }
 
+#if !defined(LG_DMA_FENCE_HAS_PER_FENCE_LOCK)
 static void hantro_fence_free(hantro_fence_t *fence)
 {
 	kfree(fence->lock);
 	fence->lock = NULL;
 	dma_fence_free(fence);
 }
+#endif
 
 const static hantro_fence_op_t hantro_fenceops = {
 	.get_driver_name = hantro_fence_get_driver_name,
@@ -69,7 +78,9 @@ const static hantro_fence_op_t hantro_fenceops = {
 	.enable_signaling = hantro_fence_enable_signaling,
 	.signaled = hantro_fence_signaled,
 	.wait = hantro_fence_default_wait,
+#if !defined(LG_DMA_FENCE_HAS_PER_FENCE_LOCK)
 	.release = hantro_fence_free,
+#endif
 };
 
 static hantro_fence_t *alloc_fence(unsigned int ctxno)
@@ -81,6 +92,9 @@ static hantro_fence_t *alloc_fence(unsigned int ctxno)
 	fobj = kzalloc(sizeof(hantro_fence_t), GFP_KERNEL);
 	if (!fobj)
 		return NULL;
+#if defined(LG_DMA_FENCE_HAS_PER_FENCE_LOCK)
+	lock = NULL;
+#else
 	lock = kzalloc(sizeof(*lock), GFP_KERNEL);
 	if (!lock) {
 		kfree(fobj);
@@ -88,6 +102,8 @@ static hantro_fence_t *alloc_fence(unsigned int ctxno)
 	}
 
 	spin_lock_init(lock);
+#endif
+
 	hantro_fence_init(fobj, &hantro_fenceops, lock, ctxno, seqno++);
 	clear_bit(HANTRO_FENCE_FLAG_SIGNAL_BIT, &fobj->flags);
 	set_bit(HANTRO_FENCE_FLAG_ENABLE_SIGNAL_BIT, &fobj->flags);
