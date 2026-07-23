@@ -2550,22 +2550,24 @@ long vcmd_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			CMDBUF_POOL_TOTAL_SIZE;
 		local_cmdbuf_mem_data.status_cmdbuf_total_size =
 			CMDBUF_POOL_TOTAL_SIZE;
-		local_cmdbuf_mem_data.phy_status_cmdbuf_addr =
-			subsys_dev->vcmd_status_buf_mem_pool->busAddress;
-		local_cmdbuf_mem_data.phy_cmdbuf_addr =
-			subsys_dev->vcmd_buf_mem_pool->busAddress;
+		if (subsys_dev->vcmd_status_buf_mem_pool) {
+			local_cmdbuf_mem_data.phy_status_cmdbuf_addr =
+				subsys_dev->vcmd_status_buf_mem_pool->busAddress;
+			local_cmdbuf_mem_data.phy_cmdbuf_addr =
+				subsys_dev->vcmd_buf_mem_pool->busAddress;
 #ifdef HAS_MMU
-		local_cmdbuf_mem_data.mmu_phy_status_cmdbuf_addr =
-			subsys_dev->vcmd_status_buf_mem_pool->mmu_bus_address;
-		local_cmdbuf_mem_data.mmu_phy_cmdbuf_addr =
-			subsys_dev->vcmd_buf_mem_pool->mmu_bus_address;
+			local_cmdbuf_mem_data.mmu_phy_status_cmdbuf_addr =
+				subsys_dev->vcmd_status_buf_mem_pool->mmu_bus_address;
+			local_cmdbuf_mem_data.mmu_phy_cmdbuf_addr =
+				subsys_dev->vcmd_buf_mem_pool->mmu_bus_address;
 #else
-		local_cmdbuf_mem_data.mmu_phy_status_cmdbuf_addr =
-			subsys_dev->vcmd_status_buf_mem_pool->busAddress - subsys_dev->base_ddr_addr;
-		local_cmdbuf_mem_data.mmu_phy_cmdbuf_addr =
-			subsys_dev->vcmd_buf_mem_pool->busAddress - subsys_dev->base_ddr_addr;
+			local_cmdbuf_mem_data.mmu_phy_status_cmdbuf_addr =
+				subsys_dev->vcmd_status_buf_mem_pool->busAddress - subsys_dev->base_ddr_addr;
+			local_cmdbuf_mem_data.mmu_phy_cmdbuf_addr =
+				subsys_dev->vcmd_buf_mem_pool->busAddress - subsys_dev->base_ddr_addr;
 #endif
-		local_cmdbuf_mem_data.base_ddr_addr = subsys_dev->base_ddr_addr;
+			local_cmdbuf_mem_data.base_ddr_addr = subsys_dev->base_ddr_addr;
+		}
 		ret = copy_to_user((struct cmdbuf_mem_parameter *)arg,
 				   &local_cmdbuf_mem_data,
 				   sizeof(struct cmdbuf_mem_parameter));
@@ -3166,6 +3168,10 @@ int hantro_vcmd_init(void *p)
 
 	dec_base_reg_hw = base_addr->dec_reg_base;
 	enc_base_reg_hw = base_addr->enc_reg_base;
+	if (!dec_base_reg_hw && !enc_base_reg_hw) {
+		PDEBUG("ERROR: no vpu device\n");
+		return -1;
+	}
 	base_ddr_hw = base_addr->ddr_base;
 	slice_num = get_vcmd_slice_num();
 	for (i = 0; i < slice_num; i++) {
@@ -3174,6 +3180,10 @@ int hantro_vcmd_init(void *p)
 		PDEBUG("%s dec num %d, enc num %d\n", __func__, cur_slice->dec_vcmd.subsys_num, cur_slice->enc_vcmd.subsys_num);
 
 		if (cur_slice->dec_vcmd.subsys_num != 0) {
+			if (!dec_base_reg_hw) {
+				cur_slice->dec_vcmd.subsys_num = 0;
+				goto enc_init;
+			}
 			cur_slice->dec_vcmd.sliceidx = i;
 			vcmd_set_base_addr(&cur_slice->dec_vcmd, dec_base_reg_hw, base_ddr_hw);
 			if (hantro_vcmd_mem_pool_init(&cur_slice->dec_vcmd) < 0) {
@@ -3185,8 +3195,12 @@ int hantro_vcmd_init(void *p)
 				return -1;
 			}
 		}
-
+enc_init:
 		if (cur_slice->enc_vcmd.subsys_num != 0) {
+			if (!enc_base_reg_hw) {
+				cur_slice->enc_vcmd.subsys_num = 0;
+				return 0;
+			}
 			cur_slice->enc_vcmd.sliceidx = i;
 			vcmd_set_base_addr(&cur_slice->enc_vcmd, enc_base_reg_hw, base_ddr_hw);
 
@@ -3232,8 +3246,8 @@ int hantro_get_core_type(u32 sub_module_type)
 	return core_type;
 }
 
-int hantro_vcmd_probe(struct pci_dev *pdev, int useirq, struct device_node *slice,
-	unsigned long ddr_base, unsigned long enc_reg_base, unsigned long dec_reg_base, unsigned int enc_irq, unsigned int dec_irq)
+int hantro_vcmd_probe(struct pci_dev *pdev, int useirq, unsigned long ddr_base, unsigned long enc_rbase,
+		unsigned long dec_rbase, unsigned int eirq, unsigned int dirq)
 {
 	int i, j;
 	int slice_num = 0;
@@ -3246,8 +3260,8 @@ int hantro_vcmd_probe(struct pci_dev *pdev, int useirq, struct device_node *slic
 
 	slice_num = ARRAY_SIZE(vcmd_core_array);
 	if (slice_num != 0) {
-		vcmd_core_array[0][0].vcmd_irq = dec_irq;
-		vcmd_core_array[0][1].vcmd_irq = enc_irq;
+		vcmd_core_array[0][0].vcmd_irq = dirq;
+		vcmd_core_array[0][1].vcmd_irq = eirq;
 	}
 	for (i = 0; i < slice_num; i++) {
 		cur_slice = kzalloc(sizeof(*cur_slice), GFP_KERNEL);
@@ -3265,7 +3279,7 @@ int hantro_vcmd_probe(struct pci_dev *pdev, int useirq, struct device_node *slic
 			memcpy(vcmd_cfg_p, &vcmd_core_array[i][j],
 			       sizeof(struct vcmd_config));
 			ensure_vcmd_submodule_addr(vcmd_cfg_p);
-			set_vcmd_slice_config(cur_slice, vcmd_cfg_p);
+			set_vcmd_slice_config(cur_slice, vcmd_cfg_p, dec_rbase, enc_rbase);
 
 			vcmd_core->type = hantro_get_core_type(
 				vcmd_cfg_p->sub_module_type);

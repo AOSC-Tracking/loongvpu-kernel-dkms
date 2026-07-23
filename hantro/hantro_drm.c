@@ -44,7 +44,7 @@
 #endif
 
 #define DRIVER_DESC "hantro DRM"
-#define DRIVER_DATE "20251203"
+#define DRIVER_DATE "20260528"
 #define DRIVER_MAJOR 1
 #define DRIVER_MINOR 1
 
@@ -114,7 +114,7 @@ static int hantro_gem_dumb_create_internal(struct drm_file *file_priv,
 	config = pslice->config;
 
 	args->handle = 0;
-	if (mutex_lock_interruptible(&dev->struct_mutex))
+	if (mutex_lock_interruptible(&hantro_dev.struct_mutex))
 		return -EBUSY;
 
 	cma_obj = kzalloc(sizeof(*cma_obj), GFP_KERNEL);
@@ -159,7 +159,7 @@ static int hantro_gem_dumb_create_internal(struct drm_file *file_priv,
 	cma_obj->handle = args->handle;
 
 out:
-	mutex_unlock(&dev->struct_mutex);
+	mutex_unlock(&hantro_dev.struct_mutex);
 	return ret;
 }
 
@@ -204,11 +204,11 @@ static int hantro_destroy_dumb(struct drm_device *dev, void *data,
 	struct drm_gem_object *obj;
 	struct drm_gem_hantro_object *cma_obj;
 
-	if (mutex_lock_interruptible(&dev->struct_mutex))
+	if (mutex_lock_interruptible(&hantro_dev.struct_mutex))
 		return -EBUSY;
 	obj = hantro_gem_object_lookup(dev, file_priv, args->handle);
 	if (!obj) {
-		mutex_unlock(&dev->struct_mutex);
+		mutex_unlock(&hantro_dev.struct_mutex);
 		return -EINVAL;
 	}
 	hantro_unref_drmobj(obj);
@@ -216,7 +216,7 @@ static int hantro_destroy_dumb(struct drm_device *dev, void *data,
 	cma_obj = to_drm_gem_hantro_obj(obj);
 
 	drm_gem_handle_delete(file_priv, args->handle);
-	mutex_unlock(&dev->struct_mutex);
+	mutex_unlock(&hantro_dev.struct_mutex);
 	return 0;
 }
 
@@ -370,15 +370,15 @@ int hantro_gem_prime_mmap(struct drm_gem_object *obj,
 		return ret;
 	lg_vm_flags_set(vma, vma->vm_flags & ~VM_PFNMAP);
 	vma->vm_pgoff = 0;
-	if (mutex_lock_interruptible(&hantro_dev.drm_dev->struct_mutex))
+	if (mutex_lock_interruptible(&hantro_dev.struct_mutex))
 		return -EBUSY;
 	if (dma_mmap_coherent(obj->dev->dev, vma, cma_obj->vaddr,
 			      cma_obj->paddr, vma->vm_end - vma->vm_start)) {
 		drm_gem_vm_close(vma);
-		mutex_unlock(&hantro_dev.drm_dev->struct_mutex);
+		mutex_unlock(&hantro_dev.struct_mutex);
 		return -EAGAIN;
 	}
-	mutex_unlock(&hantro_dev.drm_dev->struct_mutex);
+	mutex_unlock(&hantro_dev.struct_mutex);
 	vma->vm_private_data = cma_obj;
 	return ret;
 }
@@ -714,7 +714,7 @@ static int hantro_fb_create2(struct drm_device *dev, void *data,
 	struct hantro_drm_fb *vsifb;
 	struct drm_gem_object *objs[4];
 	struct drm_gem_object *obj;
-	const struct drm_format_info *info = drm_get_format_info(dev, mode_cmd);
+	const struct drm_format_info *info = lg_drm_get_format_info(dev, mode_cmd);
 	unsigned int hsub;
 	unsigned int vsub;
 	int num_planes;
@@ -749,7 +749,7 @@ static int hantro_fb_create2(struct drm_device *dev, void *data,
 	vsifb = kzalloc(sizeof(*vsifb), GFP_KERNEL);
 	if (!vsifb)
 		return -ENOMEM;
-	drm_helper_mode_fill_fb_struct(dev, &vsifb->fb, mode_cmd);
+	lg_drm_helper_mode_fill_fb_struct(dev, &vsifb->fb, info, mode_cmd);
 	for (i = 0; i < num_planes; i++)
 		vsifb->obj[i] = objs[i];
 	ret = drm_framebuffer_init(dev, &vsifb->fb, &hantro_drm_fb_funcs);
@@ -998,7 +998,7 @@ static int hantro_getmagic(struct drm_device *dev, void *data,
 	struct drm_auth *auth = data;
 	int ret = 0;
 
-	mutex_lock(&dev->struct_mutex);
+	mutex_lock(&hantro_dev.struct_mutex);
 	if (!file_priv->magic) {
 		ret = idr_alloc(&file_priv->master->magic_map, file_priv, 1, 0,
 				GFP_KERNEL);
@@ -1007,7 +1007,7 @@ static int hantro_getmagic(struct drm_device *dev, void *data,
 	}
 	auth->magic = file_priv->magic;
 	DBG("kmagic %d\n", auth->magic);
-	mutex_unlock(&dev->struct_mutex);
+	mutex_unlock(&hantro_dev.struct_mutex);
 
 	return ret < 0 ? ret : 0;
 }
@@ -1018,14 +1018,14 @@ static int hantro_authmagic(struct drm_device *dev, void *data,
 	struct drm_auth *auth = data;
 	struct drm_file *file;
 
-	mutex_lock(&dev->struct_mutex);
+	mutex_lock(&hantro_dev.struct_mutex);
 	file = idr_find(&file_priv->master->magic_map, auth->magic);
 	DBG("get kmagic %d\n", auth->magic);
 	if (file) {
 		file->authenticated = 1;
 		idr_replace(&file_priv->master->magic_map, NULL, auth->magic);
 	}
-	mutex_unlock(&dev->struct_mutex);
+	mutex_unlock(&hantro_dev.struct_mutex);
 
 	return file ? 0 : -EINVAL;
 }
@@ -1494,7 +1494,7 @@ static int hantro_mmap(struct file *filp, struct vm_area_struct *vma)
 	hantro_mmaplog("%s :%lx", __func__, vma->vm_pgoff);
 	if (vma->vm_pgoff < VSI_MMAP_ADDRES_CEIL_MMAP)
 		return hantro_map_internal_address(filp, vma);
-	if (mutex_lock_interruptible(&hantro_dev.drm_dev->struct_mutex))
+	if (mutex_lock_interruptible(&hantro_dev.struct_mutex))
 		return -EBUSY;
 	
 	vma->vm_pgoff -= VSI_MMAP_ADDRES_CEIL_MMAP;
@@ -1512,20 +1512,20 @@ static int hantro_mmap(struct file *filp, struct vm_area_struct *vma)
 	drm_vma_offset_unlock_lookup(hantro_dev.drm_dev->vma_offset_manager);
 
 	if (!obj) {
-		mutex_unlock(&hantro_dev.drm_dev->struct_mutex);
+		mutex_unlock(&hantro_dev.struct_mutex);
 		return -EINVAL;
 	}
 	hantro_unref_drmobj(obj);
 	cma_obj = to_drm_gem_hantro_obj(obj);
 
 	if (page_num > cma_obj->num_pages) {
-		mutex_unlock(&hantro_dev.drm_dev->struct_mutex);
+		mutex_unlock(&hantro_dev.struct_mutex);
 		return -EINVAL;
 	}
 	if (!(cma_obj->flag & HANTRO_GEM_FLAG_IMPORT)) {
 		pslice = getslicenode(cma_obj->sliceidx);
 		if (!pslice) {
-			mutex_unlock(&hantro_dev.drm_dev->struct_mutex);
+			mutex_unlock(&hantro_dev.struct_mutex);
 			return -EINVAL;
 		}
 		dev = pslice->dev;
@@ -1534,14 +1534,14 @@ static int hantro_mmap(struct file *filp, struct vm_area_struct *vma)
 	}
 	if ((cma_obj->flag & HANTRO_GEM_FLAG_IMPORT) == 0) {
 		if (cma_obj->vaddr == 0) {
-			mutex_unlock(&hantro_dev.drm_dev->struct_mutex);
+			mutex_unlock(&hantro_dev.struct_mutex);
 			return -EINVAL;
 		}
 		ret = hantro_drm_gem_mmap_obj(
 			obj, drm_vma_node_size(node) << PAGE_SHIFT, vma);
 
 		if (ret) {
-			mutex_unlock(&hantro_dev.drm_dev->struct_mutex);
+			mutex_unlock(&hantro_dev.struct_mutex);
 			return ret;
 		}
 	} else {
@@ -1576,7 +1576,7 @@ static int hantro_mmap(struct file *filp, struct vm_area_struct *vma)
 					unref_page(pages);
 					address += PAGE_SIZE;
 				}
-				mutex_unlock(&hantro_dev.drm_dev->struct_mutex);
+				mutex_unlock(&hantro_dev.struct_mutex);
 				return -ENOMEM;
 			}
 			ref_page(pages);
@@ -1588,7 +1588,7 @@ static int hantro_mmap(struct file *filp, struct vm_area_struct *vma)
 		vma->vm_pgoff = 0;
 		if (dma_mmap_coherent(dev, vma, cma_obj->vaddr, cma_obj->paddr,
 				      page_num << PAGE_SHIFT)) {
-			mutex_unlock(&hantro_dev.drm_dev->struct_mutex);
+			mutex_unlock(&hantro_dev.struct_mutex);
 			return -EAGAIN;
 		}
 #else
@@ -1598,7 +1598,7 @@ static int hantro_mmap(struct file *filp, struct vm_area_struct *vma)
 #endif
 	}
 	vma->vm_private_data = cma_obj;
-	mutex_unlock(&hantro_dev.drm_dev->struct_mutex);
+	mutex_unlock(&hantro_dev.struct_mutex);
 	return ret;
 }
 
@@ -1627,6 +1627,7 @@ static void hantro_release(struct drm_device *dev)
 #else
 	drm_dev_put(hantro_dev.drm_dev);
 #endif
+	mutex_destroy(&hantro_dev.struct_mutex);
 }
 
 static int hantro_gem_prime_handle_to_fd(struct drm_device *dev,
@@ -1833,7 +1834,7 @@ static const struct drm_gem_object_funcs hantro_drm_gem_cma_funcs = {
 
 struct drm_driver hantro_drm_driver = {
 	//these two are related with controlD and renderD
-	.driver_features = DRIVER_GEM | DRIVER_RENDER
+	.driver_features = DRIVER_GEM
 #if defined(LG_DRM_DRIVER_PRIME_FLAG_PRESENT)
 	 | DRIVER_PRIME
 #endif
@@ -1874,7 +1875,9 @@ struct drm_driver hantro_drm_driver = {
 	.fops = &hantro_fops,
 	.name = DRIVER_NAME,
 	.desc = DRIVER_DESC,
+#if defined(LG_DRM_DRIVER_HAS_DATE)
 	.date = DRIVER_DATE,
+#endif
 	.major = DRIVER_MAJOR,
 	.minor = DRIVER_MINOR,
 };

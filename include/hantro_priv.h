@@ -101,6 +101,13 @@ struct hantro_device_handle {
 #ifdef PCIE_EN
 	void *dev;
 #endif
+	/*
+	 * Currently, struct_mutex is only used by the i915 driver as a replacement
+	 * for BKL.
+	 *
+	 * For this reason, it is no longer part of struct drm_device.
+	 */
+	struct mutex struct_mutex;
 };
 
 struct hantro_mem_handle {

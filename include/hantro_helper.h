@@ -1,6 +1,8 @@
 #ifndef __HANTRO_HELPER_H__
 #define __HANTRO_HELPER_H__
 
+#include <drm/drm_modeset_helper.h>
+#include <drm/drm_fourcc.h>
 #include "conftest.h"
 
 static inline void lg_vm_flags_set(struct vm_area_struct *vma,
@@ -36,4 +38,27 @@ static inline int lg_pci_set_consistent_dma_mask(struct pci_dev *pci_dev, struct
 	return dma_set_coherent_mask(dev, mask);
 #endif
 }
+
+static inline void lg_drm_helper_mode_fill_fb_struct(struct drm_device *dev,
+                                                struct drm_framebuffer *fb,
+                                                const struct drm_format_info *info,
+                                                const struct drm_mode_fb_cmd2 *mode_cmd)
+{
+#if defined(LG_DRM_MODE_CONFIG_FUNCS_FB_CREATE_HAS_INFO)
+	return drm_helper_mode_fill_fb_struct(dev, fb, info, mode_cmd);
+#else
+	return drm_helper_mode_fill_fb_struct(dev, fb, mode_cmd);
+#endif
+}
+
+static inline const struct drm_format_info *lg_drm_get_format_info(struct drm_device *dev,
+						const struct drm_mode_fb_cmd2 *mode_cmd)
+{
+#if defined(LG_DRM_GET_FORMAT_INFO_HAS_PIXEL_FORMAT)
+	return drm_get_format_info(dev, mode_cmd->pixel_format, mode_cmd->modifier[0]);
+#else
+	return drm_get_format_info(dev, mode_cmd);
+#endif
+}
+
 #endif /* __HANTRO_HELPER_H__ */

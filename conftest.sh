@@ -500,6 +500,64 @@ compile_test() {
             compile_check_conftest "$CODE" "LG_DRM_GEM_OBJECT_PUT_UNLOCKED" "" "types"
         ;;
 
+        drm_driver_has_date)
+            #
+            # Determine if the drm_driver has an date member.
+            #
+            # drm: remove driver date from struct drm_driver and all drivers
+            # commit: 7fb8af6798e8d013017e4607505f58d9942fd671
+            # in v6.14
+            CODE="
+            #include <drm/drm_drv.h>
+            int conftest_drm_driver_has_date(void) {
+                return offsetof(struct drm_driver, date);
+            }"
+
+            compile_check_conftest "$CODE" "LG_DRM_DRIVER_HAS_DATE" "" "types"
+        ;;
+
+        drm_get_format_info_has_pixel_format)
+            #
+            # Determine if the drm_get_format_info() has pixel_format argument.
+            #
+            # commit id: 0e7d5874fb6b80c44be3cfbcf1cf356e81d91232
+            # drm: Pass pixel_format+modifier directly to drm_get_format_info()
+            # in v6.17
+            #
+            CODE="
+            #include <drm/drm_fourcc.h>
+            typeof(drm_get_format_info) conftest_drm_get_format_info;
+            const struct drm_format_info *conftest_drm_get_format_info(struct drm_device *dev,
+                                                             u32 pixel_format, u64 modifier) {
+                return NULL;
+            }"
+
+            compile_check_conftest "$CODE" "LG_DRM_GET_FORMAT_INFO_HAS_PIXEL_FORMAT" "" "type"
+        ;;
+
+        drm_mode_config_funcs_fb_create_has_info)
+            #
+            # Determine if the drm_mode_config_funcs->fb_create has info member.
+            #
+            # Added by commit 81112eaac559ccd451b3dce3bbb64d6b69083961 ("
+            # drm: Pass the format info to .fb_create()
+            # ") in v6.17
+            #
+            CODE="
+            #include <drm/drm_mode_config.h>
+            static const struct drm_mode_config_funcs *ops;
+            typeof(*ops->fb_create) conftest_drm_mode_config_funcs_fb_create_has_info;
+            struct drm_framebuffer *conftest_drm_mode_config_funcs_fb_create_has_info(
+                                             struct drm_device *dev,
+                                             struct drm_file *file_priv,
+                                             const struct drm_format_info *info,
+                                             const struct drm_mode_fb_cmd2 *mode_cmd) {
+                return NULL;
+            }"
+
+            compile_check_conftest "$CODE" "LG_DRM_MODE_CONFIG_FUNCS_FB_CREATE_HAS_INFO" "" "types"
+        ;;
+
         dma_resv_reserve_fences)
             #
             # Determine if dma_resv_reserve_fences exists.

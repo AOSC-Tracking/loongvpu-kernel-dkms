@@ -751,6 +751,11 @@ static int hantro_drm_pm_thaw(struct device *kdev)
 	return hantro_pm_resume(kdev, false);
 }
 
+static int hantro_drm_pm_restore(struct device *kdev)
+{
+	return hantro_pm_resume(kdev, false);
+}
+
 static int hantro_pm_runtime_suspend(struct device *kdev)
 {
 	/* Add CLk contrl*/
@@ -801,6 +806,7 @@ static const struct dev_pm_ops hantro_pm_ops = {
 	.resume = hantro_drm_pm_resume,
 	.freeze = hantro_drm_pm_freeze,
 	.thaw = hantro_drm_pm_thaw,
+	.restore = hantro_drm_pm_restore,
 	//.complete
 	.runtime_suspend = hantro_pm_runtime_suspend,
 	.runtime_resume = hantro_pm_runtime_resume,
@@ -1103,7 +1109,7 @@ static void __init probe_hantroHW(unsigned long reg_base,
 int __init hantro_init(void)
 {
 	int result, i;
-	struct hantro_base_addr subsystem_base_addr;
+	struct hantro_base_addr subsys_info;
 	int __maybe_unused slice_num = 0;
 	struct sysinfo mem_info;
 
@@ -1150,24 +1156,26 @@ int __init hantro_init(void)
 	if (result) {
 		return result;
 	}
-	subsystem_base_addr.dec_reg_base = pci_par.dec_pci_base_reg_hw;
-	subsystem_base_addr.enc_reg_base = pci_par.enc_pci_base_reg_hw;
-	subsystem_base_addr.ddr_base = pci_par.pci_base_ddr_hw;
-	subsystem_base_addr.dec_irq_num = pci_par.dec_irqnum;
-	subsystem_base_addr.enc_irq_num = pci_par.enc_irqnum;
+	subsys_info.dec_reg_base = pci_par.dec_pci_base_reg_hw;
+	subsys_info.enc_reg_base = pci_par.enc_pci_base_reg_hw;
+	subsys_info.ddr_base = pci_par.pci_base_ddr_hw;
+	subsys_info.dec_irq_num = pci_par.dec_irqnum;
+	subsys_info.enc_irq_num = pci_par.enc_irqnum;
 	hantro_dev.dev = pci_par.dev;
 #else
 //customer set correctly values
-	subsystem_base_addr.enc_reg_base = 0;
-	subsystem_base_addr.dec_reg_base = 0;
-	subsystem_base_addr.ddr_base = 0;
+	subsys_info.enc_reg_base = 0;
+	subsys_info.dec_reg_base = 0;
+	subsys_info.ddr_base = 0;
 	pr_info("Maybe need customized region info in %s, line %d\n", __func__, __LINE__);
 #endif
 
+	mutex_init(&hantro_dev.struct_mutex);
 	/*it must be here instead of in probe*/
 	hantro_dev.drm_dev =
 		drm_dev_alloc(&hantro_drm_driver, &pci_par.dev->dev);
 	if (IS_ERR(hantro_dev.drm_dev)) {
+		mutex_destroy(&hantro_dev.struct_mutex);
 		DBG("init drm failed\n");
 		return PTR_ERR(hantro_dev.drm_dev);
 	}
@@ -1184,6 +1192,7 @@ int __init hantro_init(void)
 #else
 		drm_dev_put(hantro_dev.drm_dev);
 #endif
+		mutex_destroy(&hantro_dev.struct_mutex);
 		return result;
 	}
 	initFenceData();
@@ -1196,20 +1205,24 @@ int __init hantro_init(void)
 	pr_debug("Maybe need customized in %s, line %d\n", __func__, __LINE__);
 	result = hantro_mem_pool_init();
 	if (result < 0) {
+		mutex_destroy(&hantro_dev.struct_mutex);
 		pr_err("Alloc reserve memory pool failed.\n");
 		return result;
 	}
 #endif
 #ifdef HAS_VCMD
 
-	slice_num = hantro_vcmd_probe(hantro_dev.dev, useirq, NULL, subsystem_base_addr.ddr_base, subsystem_base_addr.enc_reg_base, subsystem_base_addr.dec_reg_base, subsystem_base_addr.enc_irq_num, subsystem_base_addr.dec_irq_num);
+	slice_num = hantro_vcmd_probe(hantro_dev.dev, useirq, subsys_info.ddr_base,
+							subsys_info.enc_reg_base, subsys_info.dec_reg_base,
+							subsys_info.enc_irq_num, subsys_info.dec_irq_num);
 	for (i = 0; i < slice_num; i++) {
 		hantro_set_vcmdsup(i, 1);
 		hantro_dev.config |= get_vcmd_slice_config(i);
 	}
 
-	result = hantro_vcmd_init(&subsystem_base_addr);
+	result = hantro_vcmd_init(&subsys_info);
 	if (result < 0) {
+		mutex_destroy(&hantro_dev.struct_mutex);
 		pr_err("hantro_vcmd_init fail\n");
 		return result;
 	}
@@ -1233,7 +1246,7 @@ int __init hantro_init(void)
 #ifdef HAS_MMU
 	result =
 		hantroMMUprobe(NULL, 0, NULL, hantro_dev.platformdev,
-					   subsystem_base_addr.ddr_base, NULL);
+					   subsys_info.ddr_base, NULL);
 #endif
 #endif
 
@@ -1254,7 +1267,7 @@ int __init hantro_init(void)
 	}
 	slice_printdebug();
 
-	probe_hantroHW(subsystem_base_addr.reg_base, subsystem_base_addr.ddr_base);
+	probe_hantroHW(subsys_info.reg_base, subsys_info.ddr_base);
 	slice_init_finish();
 	slice_printdebug();
 #endif
@@ -1269,7 +1282,11 @@ int __init hantro_init(void)
 module_init(hantro_init);
 module_exit(hantro_cleanup);
 #if defined(MODULE_IMPORT_NS)
+#if KERNEL_VERSION(6, 13, 0) <= LINUX_VERSION_CODE
+MODULE_IMPORT_NS("DMA_BUF");
+#else
 MODULE_IMPORT_NS(DMA_BUF);
+#endif
 #endif
 /* module description */
 MODULE_LICENSE("GPL v2");

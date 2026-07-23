@@ -102,9 +102,9 @@ void add_vcmd_slice_config(u32 sliceidx, u32 config)
 	slice_node->config |= config;
 }
 
-void set_vcmd_slice_config(vcmd_slice_str *slice, struct vcmd_config *vcmd_cfg_p)
+void set_vcmd_slice_config(vcmd_slice_str *slice, struct vcmd_config *vcmd_cfg_p, unsigned long dec_rbase, unsigned long enc_rbase)
 {
-	if (vcmd_cfg_p->sub_module_type == VCMD_TYPE_DECODER) {
+	if (vcmd_cfg_p->sub_module_type == VCMD_TYPE_DECODER && dec_rbase) {
 		slice->config |= CONFIG_HWDEC;
 		slice->config |= CONFIG_VCMD;
 		if (vcmd_cfg_p->submodule_dec400_addr != 0xffff)
@@ -117,7 +117,7 @@ void set_vcmd_slice_config(vcmd_slice_str *slice, struct vcmd_config *vcmd_cfg_p
 			slice->config |= CONFIG_HANTROMMU;
 	}
 
-	if (vcmd_cfg_p->sub_module_type == VCMD_TYPE_ENCODER) {
+	if (vcmd_cfg_p->sub_module_type == VCMD_TYPE_ENCODER && enc_rbase) {
 		slice->config |= CONFIG_HWENC;
 		slice->config |= ADJ_ENC_SUBSIP_CFG_BIT(CONFIG_VCMD);
 		if (vcmd_cfg_p->submodule_dec400_addr != 0xffff)

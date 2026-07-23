@@ -198,19 +198,29 @@ int hantro_acquirebuf(struct drm_device *dev, void *data,
 
 	/* Check for a stalled fence */
 #if !defined(LG_LINUX_DMA_RESV_H_PRESENT)
-	if (!reservation_object_wait_timeout_rcu(resv, arg->flags & HANTRO_FENCE_WRITE, 1,
-					   timeout)) {
+	ret = reservation_object_wait_timeout_rcu(resv, arg->flags & HANTRO_FENCE_WRITE, 1,
+					   timeout);
 #elif !defined(LG_DMA_RESV_WAIT_TIMEOUT)
-	if (!dma_resv_wait_timeout_rcu(resv, arg->flags & HANTRO_FENCE_WRITE, 1,
-				       timeout)) {
+	ret = dma_resv_wait_timeout_rcu(resv, arg->flags & HANTRO_FENCE_WRITE, 1,
+				       timeout);
 #else
-	if (!dma_resv_wait_timeout(resv, dma_resv_usage_rw(arg->flags & HANTRO_FENCE_WRITE), 1,
-				       timeout)) {
+	ret = dma_resv_wait_timeout(resv, dma_resv_usage_rw(arg->flags & HANTRO_FENCE_WRITE), 1,
+				       timeout);
 
 #endif
+	/*
+	 * ret = 0: wait until timeout.
+	 * ret < 0: return error while waitting,
+	 *          signal can break waitting and
+	 *          return -ERESTARTSYS in s4 process,
+	 *          the error code should return to user space.
+	 * ret > 0: wait until fence signaled
+	 */
+	if (!ret) {
 		ret = -EBUSY;
 		goto err;
-	}
+	} else if (ret < 0)
+		goto err;
 
 	/* Expose the fence via the dma-buf */
 	ret = -ENOMEM;

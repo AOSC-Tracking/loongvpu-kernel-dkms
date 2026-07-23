@@ -451,13 +451,14 @@ typedef struct vcmd_slice {
 u32 get_vcmd_slice_config(u32 sliceidx);
 void add_vcmd_slice_config(u32 sliceidx, u32 config);
 int get_vcmd_slice_num(void);
-void set_vcmd_slice_config(vcmd_slice_str *slice, struct vcmd_config *vcmd_cfg_p);
+void set_vcmd_slice_config(vcmd_slice_str *slice, struct vcmd_config *vcmd_cfg_p, unsigned long enc_reg_base, unsigned long dec_reg_base);
 void add_vcmd_slice(struct device *dev, vcmd_slice_str *slice_node);
 void transfer_vcmdslice_to_norslice(int sliceidx);
 void add_vcmd_core(vcmd_slice_str *slice_node, vcmd_core_str *vcmd_core);
 vcmd_slice_str *hantro_vcmd_analyze_subnode(struct platform_device *pdev, int useirq,
 					    struct device_node *slice);
-int hantro_vcmd_probe(struct pci_dev *pdev, int useirq, struct device_node *slice, unsigned long ddr_base, unsigned long enc_reg_base, unsigned long dec_reg_base, unsigned int enc_irq, unsigned int dec_irq);
+int hantro_vcmd_probe(struct pci_dev *pdev, int useirq, unsigned long ddr_base, unsigned long enc_rbase,
+		unsigned long dec_rbase, unsigned int eirq, unsigned int dirq);
 int hantro_vcmd_cleanup(void);
 vcmd_slice_str *get_slice_by_sliceidx(u32 sliceidx);
 vcmd_core_str *get_dev_of_core(vcmd_dev_str *vcmd_dev, u32 id);
