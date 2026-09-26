@@ -1574,12 +1574,10 @@ static long release_cmdbuf_notlinked(struct file *filp, vcmd_dev_str *subsys_dev
 				if (pmo) {
 					spin_lock_irqsave(&pmo->spinlock, flags);
 					pmo->total_exe_time -= cmdbuf_obj->executing_time;
-					free_cmdbuf_node(subsys_dev, new_cmdbuf_node);
 					spin_unlock_irqrestore(&pmo->spinlock, flags);
 					wake_up_interruptible_all(&pmo->wait_queue);
-				} else {
-					free_cmdbuf_node(subsys_dev, new_cmdbuf_node);
 				}
+				free_cmdbuf_node(subsys_dev, new_cmdbuf_node);
 			}
 		}
 	} while (0);
@@ -1640,14 +1638,12 @@ static long release_cmdbuf(struct file *filp, vcmd_dev_str *subsys_dev,
 					[cmdbuf_obj->cmdbuf_id] = NULL;
 				pmo = cmdbuf_obj->process_manager_obj;
 				if (pmo) {
-					spin_lock(&pmo->spinlock);
+					spin_lock_irqsave(&pmo->spinlock, flags);
 					pmo->total_exe_time -= cmdbuf_obj->executing_time;
-					free_cmdbuf_node(subsys_dev, new_cmdbuf_node);
-					spin_unlock(&pmo->spinlock);
+					spin_unlock_irqrestore(&pmo->spinlock, flags);
 					wake_up_interruptible_all(&pmo->wait_queue);
-				} else {
-					free_cmdbuf_node(subsys_dev, new_cmdbuf_node);
 				}
+				free_cmdbuf_node(subsys_dev, new_cmdbuf_node);
 			}
 		}
 		if (!last_cmdbuf_node)
@@ -3509,6 +3505,14 @@ int hantrovcmd_release(struct inode *inode, struct file *filp)
 	struct vcmd_dev *all_subsys_dev[SUBS_DEV_COUNT] = {NULL};
 	int cmdbuf_used_pos;
 	int ret;
+	unsigned long flags;
+	unsigned long pm_flags;
+	/* Deferred-free list for cmdbuf nodes removed from list under
+	 * spin_lock_irqsave, where vfree() cannot be called directly
+	 * (vfree may trigger TLB flush → smp_call_function_many IPI
+	 * which requires IRQs enabled). Nodes are freed after unlock. */
+	bi_list_node *to_free_nodes[TOTAL_DISCRETE_CMDBUF_NUM] = {NULL};
+	int to_free_count = 0;
 
 	cur_slice = get_vcmd_slice_head();
 	if (!cur_slice)
@@ -3538,7 +3542,13 @@ int hantrovcmd_release(struct inode *inode, struct file *filp)
 		for (core_id = 0; core_id < total_vcmd_core_num; core_id++) {
 			if (subsys_core == NULL)
 				continue;
-			spin_lock(&subsys_core->spinlock);
+			/* Must use irqsave: the ISR acquires this same spinlock
+			 * with irqsave. Using plain spin_lock here leaves IRQs
+			 * enabled; if the ISR fires on this CPU while we hold
+			 * the lock (especially during the mdelay polling loop
+			 * below which can run for up to 3 seconds), the ISR's
+			 * spin_lock_irqsave would spin forever — deadlock. */
+			spin_lock_irqsave(&subsys_core->spinlock, flags);
 			new_cmdbuf_node = subsys_core->list_manager.head;
 
 			while (1) {
@@ -3549,19 +3559,40 @@ int hantrovcmd_release(struct inode *inode, struct file *filp)
 					filp, cmdbuf_obj_temp->cmdbuf_id, cmdbuf_obj_temp->filp);
 				if (subsys_core->hwregs && (cmdbuf_obj_temp->filp == filp)) {
 					if (cmdbuf_obj_temp->cmdbuf_run_done) {
+						bi_list_node *freed;
 						cmdbuf_obj_temp->cmdbuf_need_remove = 1;
-						retVal = release_cmdbuf_node(subsys_dev,
+						/* Use remove_cmdbuf_node_from_list + clear
+						 * global_cmdbuf_node[] here (instead of
+						 * release_cmdbuf_node) and defer the vfree to
+						 * after spin_unlock, because vfree can trigger
+						 * TLB flushes that require IRQs enabled. */
+						freed = remove_cmdbuf_node_from_list(
 							&subsys_core->list_manager, new_cmdbuf_node);
-						if (retVal == 1)
+						if (freed) {
+							struct cmdbuf_obj *o =
+								(struct cmdbuf_obj *)freed->data;
+							subsys_dev->global_cmdbuf_node[o->cmdbuf_id] = NULL;
+							to_free_nodes[to_free_count++] = freed;
+							retVal = 0;
+						} else {
 							cmdbuf_obj_temp->process_manager_obj = NULL;
+						}
 					} else if (cmdbuf_obj_temp->cmdbuf_data_linked == 0) {
+						bi_list_node *freed;
 						cmdbuf_obj_temp->cmdbuf_data_linked = 1;
 						cmdbuf_obj_temp->cmdbuf_run_done    = 1;
 						cmdbuf_obj_temp->cmdbuf_need_remove = 1;
-						retVal = release_cmdbuf_node(subsys_dev,
+						freed = remove_cmdbuf_node_from_list(
 							&subsys_core->list_manager, new_cmdbuf_node);
-						if (retVal == 1)
+						if (freed) {
+							struct cmdbuf_obj *o =
+								(struct cmdbuf_obj *)freed->data;
+							subsys_dev->global_cmdbuf_node[o->cmdbuf_id] = NULL;
+							to_free_nodes[to_free_count++] = freed;
+							retVal = 0;
+						} else {
 							cmdbuf_obj_temp->process_manager_obj = NULL;
+						}
 					} else if (cmdbuf_obj_temp->cmdbuf_data_linked == 1 &&
 						subsys_core->working_state == WORKING_STATE_IDLE) {
 						vcmd_delink_rm_cmdbuf(subsys_core, new_cmdbuf_node);
@@ -3616,12 +3647,12 @@ int hantrovcmd_release(struct inode *inode, struct file *filp)
 								pr_err("hantrovcmd: too long before vcmd core to IDLE state\n");
 								process_manager_node = get_process_manager_node(filp, subsys_dev);
 								if (process_manager_node) {
-									spin_lock(&subsys_dev->vcmd_process_manager_lock);
+									spin_lock_irqsave(&subsys_dev->vcmd_process_manager_lock, pm_flags);
 									bi_list_remove_node(&subsys_dev->global_process_manager, process_manager_node);
+									spin_unlock_irqrestore(&subsys_dev->vcmd_process_manager_lock, pm_flags);
 									free_process_manager_node(process_manager_node);
-									spin_unlock(&subsys_dev->vcmd_process_manager_lock);
 								}
-								spin_unlock(&subsys_core->spinlock);
+								spin_unlock_irqrestore(&subsys_core->spinlock, flags);
 								up(&subsys_dev->vcmd_reserve_cmdbuf_sem[subsys_dev->vcmd_core->vcmd_core_cfg.sub_module_type]);
 								subsys_core->working_state = WORKING_STATE_IDLE;
 								return -ERESTARTSYS;
@@ -3781,7 +3812,18 @@ int hantrovcmd_release(struct inode *inode, struct file *filp)
 	#endif
 			} else
 				PDEBUG("No more command buffer to be restarted!\n");
-			spin_unlock(&subsys_core->spinlock);
+			spin_unlock_irqrestore(&subsys_core->spinlock, flags);
+
+			/* Free cmdbuf nodes that were removed from the list
+			 * while holding spin_lock_irqsave above. vfree() must
+			 * be called with IRQs enabled as it may trigger TLB
+			 * flushes (smp_call_function_many IPI). */
+			{
+				int j;
+				for (j = 0; j < to_free_count; j++)
+					free_cmdbuf_node(subsys_dev, to_free_nodes[j]);
+				to_free_count = 0;
+			}
 
 			// VCMD aborted but not restarted, need to wake up
 
@@ -3798,10 +3840,10 @@ int hantrovcmd_release(struct inode *inode, struct file *filp)
 			//remove node from list
 			PDEBUG("process node %p for filp to be removed: %p\n",
 				(void *)process_manager_node, (void *)filp);
-			spin_lock(&subsys_dev->vcmd_process_manager_lock);
+			spin_lock_irqsave(&subsys_dev->vcmd_process_manager_lock, flags);
 			bi_list_remove_node(&subsys_dev->global_process_manager, process_manager_node);
+			spin_unlock_irqrestore(&subsys_dev->vcmd_process_manager_lock, flags);
 			free_process_manager_node(process_manager_node);
-			spin_unlock(&subsys_dev->vcmd_process_manager_lock);
 		}
 		// remove cmdbuf reserved but not linked
 		cmdbuf_used_pos = 2;
@@ -4118,34 +4160,45 @@ static void get_vcmd_pool_mmuaddr(vcmd_dev_str *subsys_dev)
  */
 static int vcmd_abort(vcmd_core_str *subsys_core)
 {
-	spin_lock(&subsys_core->spinlock);
+	unsigned long flags;
+
+	/* Must use irqsave: if the ISR fires on the same CPU while we hold
+	 * the spinlock, the ISR's spin_lock_irqsave would spin forever
+	 * waiting for us to release, but we can't release because the ISR
+	 * preempted us — classic spinlock+ISR deadlock. */
+	spin_lock_irqsave(&subsys_core->spinlock, flags);
 	vcmd_write_register_value((const void *)subsys_core->hwregs,
 								subsys_core->reg_mirror,
 								HWIF_VCMD_START_TRIGGER, 0);
-	spin_unlock(&subsys_core->spinlock);
-	if (vcmd_isr_polling == 0) {
-		if (wait_event_interruptible(subsys_core->wait_abort_queue,
-						(subsys_core->working_state == WORKING_STATE_IDLE))) {
-			pr_err("%s: wait_abort_queue is signaled!!!\n", __func__);
-			return -ERESTARTSYS;
-		}
-	} else {
-		u32 irq, cnt = 100000;
+	spin_unlock_irqrestore(&subsys_core->spinlock, flags);
+	{
+		long ret;
 
-		irq = (subsys_core->vcmd_core_cfg.vcmd_irq == -1) ?
-				subsys_core->core_id : subsys_core->vcmd_core_cfg.vcmd_irq;
-
-		while (cnt--) {
-			usleep_range(100, 120);
-			hantrovcmd_isr(irq, subsys_core);
-			if (subsys_core->working_state == WORKING_STATE_IDLE) {
-				cnt += 1;
-				break;
-			}
-		}
-		if (cnt == 0) {
-			pr_err("%s: can't wait aborted!!!\n", __func__);
-			return -ERESTARTSYS;
+		/* Use wait_event_timeout unconditionally during abort.
+		 *
+		 * Previously, the vcmd_isr_polling==1 path used a tight
+		 * usleep_range() + hantrovcmd_isr() polling loop that could
+		 * run for up to 10-12 seconds per core. During system suspend
+		 * this caused RCU stalls and soft lockups because:
+		 *  - The polling loop prevented RCU from reporting quiescent
+		 *    states on the executing CPU for the entire duration.
+		 *  - With two VCMD cores (dec + enc), total suspend time could
+		 *    exceed 20 seconds, triggering the RCU stall detector.
+		 *
+		 * wait_event_timeout is safe during suspend: the PM worker
+		 * thread is not frozen, hardirqs still fire (so the ISR can
+		 * process the abort and wake the queue), and the scheduler
+		 * properly reports RCU quiescent states while sleeping.
+		 * Timeout: 5 seconds per core.
+		 */
+		ret = wait_event_timeout(subsys_core->wait_abort_queue,
+					 (subsys_core->working_state == WORKING_STATE_IDLE),
+					 msecs_to_jiffies(5000));
+		if (ret == 0) {
+			pr_err("%s: core %d wait_abort_queue timed out (working_state=%d)!!!\n",
+			       __func__, subsys_core->core_id,
+			       subsys_core->working_state);
+			return -ETIMEDOUT;
 		}
 	}
 
@@ -4157,6 +4210,7 @@ static int vcmd_abort(vcmd_core_str *subsys_core)
  */
 int vcmd_pm_suspend(void *_dev)
 {
+	unsigned long flags;
 	vcmd_dev_str *subsys_dev = (vcmd_dev_str *)_dev;
 	vcmd_core_str *subsys_core = subsys_dev->vcmd_core;
 	int i;
@@ -4164,16 +4218,18 @@ int vcmd_pm_suspend(void *_dev)
 	for (i = 0; i < subsys_dev->subsys_num; i++) {
 		if (!subsys_core)
 			continue;
-		spin_lock(&subsys_core->spinlock);
+		spin_lock_irqsave(&subsys_core->spinlock, flags);
 		if (subsys_core->working_state == WORKING_STATE_WORKING) {
-			spin_unlock(&subsys_core->spinlock);
+			subsys_dev->software_triger_abort = 1;
+			spin_unlock_irqrestore(&subsys_core->spinlock, flags);
 			vcmd_abort(subsys_core);
+			subsys_dev->software_triger_abort = 0;
 			if (subsys_core->working_state != WORKING_STATE_IDLE) {
 				pr_err("suspend failed for dev [%d].", subsys_core->core_id);
 				return -EBUSY;
 			}
 		} else
-			spin_unlock(&subsys_core->spinlock);
+			spin_unlock_irqrestore(&subsys_core->spinlock, flags);
 
 		subsys_core = subsys_core->core_next;
 	}
@@ -4182,19 +4238,25 @@ int vcmd_pm_suspend(void *_dev)
 
 /**
  * @brief resume for vcmd driver power management
+ *
+ * vcmd_link_cmdbuf and vcmd_start modify shared state (sw_cmdbuf_rdy_num,
+ * cmdbuf chain, working_state) that the ISR also accesses, so they must
+ * remain under spinlock protection. Using irqsave/irqrestore for consistency
+ * with vcmd_pm_suspend and to prevent deadlock with the ISR.
  */
 int vcmd_pm_resume(void *_dev)
 {
 	vcmd_dev_str *subsys_dev = (vcmd_dev_str *)_dev;
 	vcmd_core_str *subsys_core = subsys_dev->vcmd_core;
 	bi_list_node *node;
+	unsigned long flags;
 	int i;
 
 	for (i = 0; i < subsys_dev->subsys_num; i++) {
 		if (!subsys_core)
 			continue;
 
-		spin_lock(&subsys_core->spinlock);
+		spin_lock_irqsave(&subsys_core->spinlock, flags);
 		node = subsys_dev->global_cmdbuf_node[subsys_core->aborted_cmdbuf_id];
 		if (subsys_core->working_state == WORKING_STATE_IDLE) {
 			if (node)
@@ -4206,7 +4268,7 @@ int vcmd_pm_resume(void *_dev)
 				vcmd_start(subsys_core, node);
 		}
 
-		spin_unlock(&subsys_core->spinlock);
+		spin_unlock_irqrestore(&subsys_core->spinlock, flags);
 		subsys_core = subsys_core->core_next;
 	}
 	return 0;

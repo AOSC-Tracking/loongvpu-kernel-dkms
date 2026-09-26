@@ -231,6 +231,7 @@ int init_hantro_resv(
 
 void initFenceData(void);
 void releaseFenceData(void);
+void hantro_pm_signal_all_fences(void);
 
 int hantro_memalloc(struct hantro_mem_handle *phandle);
 int hantro_memfree(struct hantro_mem_handle *phandle);

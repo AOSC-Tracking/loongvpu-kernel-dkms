@@ -108,13 +108,23 @@ static long EncStoreRegs(struct hantroenc_t *dev)
 int enc_pm_suspend(void *_dev)
 {
 	struct hantroenc_t *dev = (struct hantroenc_t *)_dev;
+	int ret;
 
 	pr_info("%s start..\n", __func__);
 
 	while (dev) {
-		/*if HW is active, need to wait until frame ready interrupt*/
-		if ((dev->is_reserved == 0) || (down_interruptible(&dev->core_suspend_sem)))
+		if (dev->is_reserved == 0) {
+			dev = dev->next;
 			continue;
+		}
+
+		/* wait until frame ready interrupt releases the semaphore */
+		ret = down_interruptible(&dev->core_suspend_sem);
+		if (ret) {
+			pr_warn("%s: core %d semaphore interrupted, retrying\n",
+				__func__, dev->core_id);
+			continue;
+		}
 
 		dev->reg_corrupt = 1;
 		if (dev->irq_status & 0x04)
@@ -136,8 +146,10 @@ int enc_pm_resume(void *_dev)
 	pr_info("%s start..\n", __func__);
 
 	while (dev) {
-		if (dev->is_reserved == 0)
+		if (dev->is_reserved == 0) {
+			dev = dev->next;
 			continue;
+		}
 
 		reg_buf = dev->reg_buf;
 

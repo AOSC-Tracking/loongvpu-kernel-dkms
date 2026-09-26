@@ -164,6 +164,15 @@ void releaseFenceData(void)
 	mutex_unlock(&fence_mutex);
 }
 
+void hantro_pm_signal_all_fences(void)
+{
+	mutex_lock(&fence_mutex);
+	idr_for_each(&fence_idr, fence_idr_fini, NULL);
+	idr_destroy(&fence_idr);
+	idr_init(&fence_idr);
+	mutex_unlock(&fence_mutex);
+}
+
 int hantro_acquirebuf(struct drm_device *dev, void *data,
 		      struct drm_file *file_priv)
 {

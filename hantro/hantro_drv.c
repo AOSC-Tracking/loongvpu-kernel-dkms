@@ -648,16 +648,28 @@ static int hantro_pm_pci_switch(struct pci_dev *pdev, bool is_suspend)
 static int hantro_pm_suspend(struct device *kdev, bool is_suspend)
 {
 #ifdef VSI_CONFIG_PM
+	int ret = 0;
+
 #ifdef HAS_VCMD
 	vcmd_slice_str *slice = get_vcmd_slice_head();
 	while (slice) {
 #ifdef HAS_VCD
-		if (slice->dec_vcmd.subsys_num != 0)
-			vcmd_pm_suspend(&slice->dec_vcmd);
+		if (slice->dec_vcmd.subsys_num != 0) {
+			ret = vcmd_pm_suspend(&slice->dec_vcmd);
+			if (ret) {
+				pr_err("hantro: dec vcmd suspend failed (%d)\n", ret);
+				return ret;
+			}
+		}
 #endif // HAS_VCD
 #ifdef HAS_VCE
-		if (slice->enc_vcmd.subsys_num != 0)
-			vcmd_pm_suspend(&slice->enc_vcmd);
+		if (slice->enc_vcmd.subsys_num != 0) {
+			ret = vcmd_pm_suspend(&slice->enc_vcmd);
+			if (ret) {
+				pr_err("hantro: enc vcmd suspend failed (%d)\n", ret);
+				return ret;
+			}
+		}
 #endif // HAS_VCE
 		slice = slice->slice_next;
 	}
@@ -665,16 +677,28 @@ static int hantro_pm_suspend(struct device *kdev, bool is_suspend)
 	struct slice_info *slice = get_vcmd_slice_head();
 	while (slice) {
 #ifdef HAS_VCD
-		if (slice->deccore_num != 0)
-			dec_pm_suspend(slice->dechdr);
+		if (slice->deccore_num != 0) {
+			ret = dec_pm_suspend(slice->dechdr);
+			if (ret) {
+				pr_err("hantro: dec suspend failed (%d)\n", ret);
+				return ret;
+			}
+		}
 #endif // HAS_VCD
 #ifdef HAS_VCE
-		if (slice->enccore_num != 0)
-			enc_pm_suspend(slice->enchdr);
+		if (slice->enccore_num != 0) {
+			ret = enc_pm_suspend(slice->enchdr);
+			if (ret) {
+				pr_err("hantro: enc suspend failed (%d)\n", ret);
+				return ret;
+			}
+		}
 #endif // HAS_VCE
 		slice = slice->slice_next;
 	}
 #endif // HAS_VCMD
+
+	hantro_pm_signal_all_fences();
 #ifdef PCIE_EN
 	if (is_suspend) {
 		hantro_pm_pci_switch(to_pci_dev(kdev), true);

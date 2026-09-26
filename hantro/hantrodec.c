@@ -262,12 +262,21 @@ static long DecStoreRegs(struct hantrodec_t *dev, u32 id)
 int dec_pm_suspend(void *_dev)
 {
 	struct hantrodec_t *dev = (struct hantrodec_t *)_dev;
+	int timeout;
 
 	while (dev) {
 		if (dev->dec_owner) {
-			/* polling until hw is idle */
-			while (dev->hw_active)
+			/* polling until hw is idle, with 10s timeout */
+			timeout = 1000; /* 1000 * 10ms = 10s */
+			while (dev->hw_active && --timeout)
 				usleep_range(5000, 10000);
+
+			if (!timeout) {
+				pr_err("%s: dec core %d suspend timeout, hw still active\n",
+				       __func__, dev->core_id);
+				dev = dev->next;
+				continue;
+			}
 
 			/* let's backup all registers from H/W to shadow register to support suspend */
 			DecStoreRegs(dev, dev->core_id);
